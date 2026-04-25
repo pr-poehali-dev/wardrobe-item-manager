@@ -177,6 +177,227 @@ function InlineEdit({ value, onSave, onCancel }: { value: string; onSave: (v: st
   );
 }
 
+// ── Add Thing Modal ────────────────────────────────────────────────────────
+function AddThingModal({ locations, onClose, onAdd }: {
+  locations: Location[];
+  onClose: () => void;
+  onAdd: (thing: Thing) => void;
+}) {
+  const firstLoc = locations[0];
+  const firstRoom = firstLoc?.rooms[0];
+  const firstWardrobe = firstRoom?.wardrobes[0];
+  const firstSection = firstWardrobe?.sections[0];
+  const firstShelf = firstSection?.shelves[0];
+
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("Одежда");
+  const [tagsRaw, setTagsRaw] = useState("");
+  const [inHand, setInHand] = useState(false);
+  const [photo, setPhoto] = useState<string | undefined>();
+
+  const [selLoc, setSelLoc] = useState(firstLoc?.id ?? "");
+  const [selRoom, setSelRoom] = useState(firstRoom?.id ?? "");
+  const [selWardrobe, setSelWardrobe] = useState(firstWardrobe?.id ?? "");
+  const [selSection, setSelSection] = useState(firstSection?.id ?? "");
+  const [selShelf, setSelShelf] = useState(firstShelf?.id ?? "");
+
+  const loc = locations.find(l => l.id === selLoc);
+  const room = loc?.rooms.find(r => r.id === selRoom);
+  const wardrobe = room?.wardrobes.find(w => w.id === selWardrobe);
+  const section = wardrobe?.sections.find(s => s.id === selSection);
+
+  const handleLocChange = (locId: string) => {
+    setSelLoc(locId);
+    const l = locations.find(x => x.id === locId);
+    setSelRoom(l?.rooms[0]?.id ?? "");
+    setSelWardrobe(l?.rooms[0]?.wardrobes[0]?.id ?? "");
+    setSelSection(l?.rooms[0]?.wardrobes[0]?.sections[0]?.id ?? "");
+    setSelShelf(l?.rooms[0]?.wardrobes[0]?.sections[0]?.shelves[0]?.id ?? "");
+  };
+  const handleRoomChange = (roomId: string) => {
+    setSelRoom(roomId);
+    const r = loc?.rooms.find(x => x.id === roomId);
+    setSelWardrobe(r?.wardrobes[0]?.id ?? "");
+    setSelSection(r?.wardrobes[0]?.sections[0]?.id ?? "");
+    setSelShelf(r?.wardrobes[0]?.sections[0]?.shelves[0]?.id ?? "");
+  };
+  const handleWardrobeChange = (wId: string) => {
+    setSelWardrobe(wId);
+    const w = room?.wardrobes.find(x => x.id === wId);
+    setSelSection(w?.sections[0]?.id ?? "");
+    setSelShelf(w?.sections[0]?.shelves[0]?.id ?? "");
+  };
+  const handleSectionChange = (sId: string) => {
+    setSelSection(sId);
+    const s = wardrobe?.sections.find(x => x.id === sId);
+    setSelShelf(s?.shelves[0]?.id ?? "");
+  };
+
+  const canSave = name.trim() && (inHand || selShelf);
+
+  const handleSave = () => {
+    if (!canSave) return;
+    onAdd({
+      id: uid(),
+      name: name.trim(),
+      category,
+      tags: tagsRaw.split(",").map(t => t.trim()).filter(Boolean),
+      inHand,
+      photo,
+      locationId: selLoc,
+      roomId: selRoom,
+      wardrobeId: selWardrobe,
+      sectionId: selSection,
+      shelfId: selShelf,
+    });
+    onClose();
+  };
+
+  const selectClass = "w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-body text-foreground focus:outline-none focus:border-primary transition-colors";
+  const labelClass = "text-xs text-muted-foreground font-body mb-1.5 block";
+  const hasLocations = locations.length > 0 && (loc?.rooms.length ?? 0) > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-md" />
+      <div
+        className="relative w-full max-w-md bg-card border border-border rounded-t-2xl sm:rounded-2xl overflow-hidden animate-slide-up shadow-2xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h3 className="font-display text-xl font-medium text-foreground">Новая вещь</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          {/* Photo */}
+          <label className="block cursor-pointer">
+            <div className={`w-full h-28 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-colors ${photo ? "border-transparent p-0 overflow-hidden" : "border-border hover:border-primary/50"}`}>
+              {photo ? (
+                <img src={photo} alt="" className="w-full h-full object-cover rounded-xl" />
+              ) : (
+                <>
+                  <Icon name="ImagePlus" size={22} className="text-muted-foreground" />
+                  <span className="text-xs font-body text-muted-foreground">Добавить фото (необязательно)</span>
+                </>
+              )}
+            </div>
+            <input type="file" accept="image/*" className="hidden" onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) setPhoto(URL.createObjectURL(f));
+            }} />
+          </label>
+
+          {/* Name */}
+          <div>
+            <label className={labelClass}>Название *</label>
+            <input
+              autoFocus
+              className={selectClass}
+              placeholder="Например: Синий свитер"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSave()}
+            />
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className={labelClass}>Категория</label>
+            <div className="flex flex-wrap gap-2">
+              {["Одежда", "Аксессуары", "Инструменты", "Другое"].map(cat => (
+                <button
+                  key={cat}
+                  className={`px-3 py-1.5 rounded-full text-xs font-body font-medium transition-all ${category === cat ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground border border-border hover:border-primary/50"}`}
+                  onClick={() => setCategory(cat)}
+                >{cat}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label className={labelClass}>Теги (через запятую)</label>
+            <input
+              className={selectClass}
+              placeholder="зима, тёплый, синий"
+              value={tagsRaw}
+              onChange={e => setTagsRaw(e.target.value)}
+            />
+          </div>
+
+          {/* In hand toggle */}
+          <button
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${inHand ? "border-primary bg-primary/10" : "border-border bg-muted/40 hover:border-primary/50"}`}
+            onClick={() => setInHand(v => !v)}
+          >
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${inHand ? "bg-primary/20" : "bg-muted"}`}>
+              <Icon name="Hand" size={16} className={inHand ? "text-primary" : "text-muted-foreground"} />
+            </div>
+            <div className="text-left">
+              <p className={`text-sm font-body font-medium ${inHand ? "text-primary" : "text-foreground"}`}>На руках</p>
+              <p className="text-xs font-body text-muted-foreground">Вещь сейчас у вас</p>
+            </div>
+            <div className={`ml-auto w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${inHand ? "border-primary bg-primary" : "border-border"}`}>
+              {inHand && <Icon name="Check" size={11} className="text-primary-foreground" />}
+            </div>
+          </button>
+
+          {/* Location selects */}
+          {!inHand && (
+            <div className="space-y-2 p-3 rounded-xl bg-muted/40 border border-border">
+              <p className="text-xs text-muted-foreground font-body font-medium uppercase tracking-wide">Расположение</p>
+              {!hasLocations ? (
+                <p className="text-xs text-muted-foreground font-body">Сначала добавьте локацию и комнату во вкладке «Локации»</p>
+              ) : (
+                <>
+                  <select className={selectClass} value={selLoc} onChange={e => handleLocChange(e.target.value)}>
+                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                  {(loc?.rooms.length ?? 0) > 0 && (
+                    <select className={selectClass} value={selRoom} onChange={e => handleRoomChange(e.target.value)}>
+                      {loc?.rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  )}
+                  {(room?.wardrobes.length ?? 0) > 0 && (
+                    <select className={selectClass} value={selWardrobe} onChange={e => handleWardrobeChange(e.target.value)}>
+                      {room?.wardrobes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  )}
+                  {(wardrobe?.sections.length ?? 0) > 0 && (
+                    <select className={selectClass} value={selSection} onChange={e => handleSectionChange(e.target.value)}>
+                      {wardrobe?.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  )}
+                  {(section?.shelves.length ?? 0) > 0 && (
+                    <select className={selectClass} value={selShelf} onChange={e => setSelShelf(e.target.value)}>
+                      {section?.shelves.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 pt-3 border-t border-border shrink-0 flex gap-2">
+          <button className="flex-1 py-3 rounded-xl border border-border text-sm font-body text-muted-foreground hover:text-foreground transition-colors" onClick={onClose}>Отмена</button>
+          <button
+            className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-body font-medium transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40"
+            disabled={!canSave}
+            onClick={handleSave}
+          >Добавить вещь</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Thing Card ─────────────────────────────────────────────────────────────
 function ThingCard({ thing, locations, onClick, onToggleHand }: {
   thing: Thing;
@@ -710,6 +931,7 @@ export default function Index() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Все");
   const [selectedThing, setSelectedThing] = useState<Thing | null>(null);
+  const [addingThing, setAddingThing] = useState(false);
 
   const filtered = useMemo(() => {
     return things.filter(t => {
@@ -732,6 +954,10 @@ export default function Index() {
   const moveThing = (id: string, shelfId: string, locationId: string, roomId: string, wardrobeId: string, sectionId: string) => {
     setThings(prev => prev.map(t => t.id === id ? { ...t, shelfId, locationId, roomId, wardrobeId, sectionId, inHand: false } : t));
     setSelectedThing(prev => prev?.id === id ? { ...prev, shelfId, locationId, roomId, wardrobeId, sectionId, inHand: false } : prev);
+  };
+
+  const addThing = (thing: Thing) => {
+    setThings(prev => [thing, ...prev]);
   };
 
   const addPhoto = (id: string, file: File) => {
@@ -865,6 +1091,17 @@ export default function Index() {
         )}
       </main>
 
+      {/* FAB */}
+      {(activeTab === "catalog" || activeTab === "inhand") && (
+        <button
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 active:scale-95 transition-all amber-glow"
+          onClick={() => setAddingThing(true)}
+          title="Добавить вещь"
+        >
+          <Icon name="Plus" size={24} />
+        </button>
+      )}
+
       {selectedThing && (
         <ThingDetail
           thing={selectedThing}
@@ -873,6 +1110,14 @@ export default function Index() {
           onToggleHand={toggleHand}
           onMove={moveThing}
           onAddPhoto={addPhoto}
+        />
+      )}
+
+      {addingThing && (
+        <AddThingModal
+          locations={locations}
+          onClose={() => setAddingThing(false)}
+          onAdd={addThing}
         />
       )}
     </div>
